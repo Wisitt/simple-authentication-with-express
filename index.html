@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Authentication</title>
+  </head>
+  <body>
+    Login Form
+    <label for="email">Email: </label>
+    <input id="email" />
+    <label for="password">password: </label>
+    <input id="password" />
+    <button onclick="login()">Login</button>
+    <button onclick="getUsers()">Get Users</button>
+    <ul id="users"></ul>
+    <script src="https://unpkg.com/axios@1.1.2/dist/axios.min.js"></script>
+    <script>
+      const baseApiUrl = "http://localhost:8000/api";
+
+      axios.interceptors.request.use(
+        (config) => {
+          const accessToken = localStorage.getItem("accessToken");
+          if (accessToken) {
+            config.headers["Authorization"] = `Bearer ${accessToken}`;
+          }
+          return config;
+        },
+        (error) => Promise.reject(error)
+      );
+
+      axios.interceptors.response.use(
+        (response) => response,
+        async (error) => {
+          if (error.response.status === 401) {
+            const response = await axios.post(
+              `${baseApiUrl}/auth/refresh-token`,
+              {
+                refreshToken: localStorage.getItem("refreshToken"),
+              }
+            );
+            const { accessToken, refreshToken } = response.data;
+            localStorage.setItem("accessToken", accessToken);
+            localStorage.setItem("refreshToken", refreshToken);
+            const originalRequest = error.config;
+            return axios(originalRequest);
+          }
+          return Promise.reject(error);
+        }
+      );
+
+      const login = async () => {
+        const emailElement = document.getElementById("email");
+        const passwordElement = document.getElementById("password");
+        const response = await axios.post(`${baseApiUrl}/auth/login`, {
+          email: emailElement.value,
+          password: passwordElement.value,
+        });
+        const data = response.data;
+        localStorage.setItem("accessToken", data.accessToken);
+        localStorage.setItem("refreshToken", data.refreshToken);
+      };
+
+      const getUsers = async () => {
+        try {
+          const response = await axios.get(`${baseApiUrl}/users`);
+          const data = response.data;
+          document.getElementById("users").innerHTML = "";
+          data.users.map((user) => {
+            const li = document.createElement("li");
+            li.innerHTML = `Email: ${user.email}, Password: ${user.password}`;
+            document.getElementById("users").appendChild(li);
+          });
+        } catch (error) {
+          console.log(error);
+        }
+      };
+    </script>
+  </body>
+</html>
